@@ -42,11 +42,12 @@ jobs:
           go-version-file: go.mod
       - name: Run gosec
         run: |
-          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.30.0
           # G304 (file read via variable) is disabled: all paths live under DATA_DIR/BACKUP_DIR
           # with validated IDs; real path traversal is still caught by G703 (taint analysis).
           # Remaining false positives are annotated inline with `#nosec <rule> -- reason`.
-          gosec -quiet -exclude=G304 -exclude-dir=web -severity medium -confidence medium \
+          # Keep quiet mode disabled so clean scans also produce the SARIF report.
+          gosec -exclude=G304 -exclude-dir=web -severity medium -confidence medium \
             -fmt sarif -out gosec.sarif -stdout -verbose text ./...
       - name: Upload SARIF
         if: always() && github.event_name != 'pull_request'
