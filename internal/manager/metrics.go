@@ -304,9 +304,9 @@ func (m *Manager) writeMetrics(w *metricWriter) error {
 	var st syscall.Statfs_t
 	if syscall.Statfs(m.cfg.BackupDir, &st) == nil {
 		w.family("dbbm_backup_disk_free_bytes", "gauge", "Free space for BACKUP_DIR.")
-		w.sample("dbbm_backup_disk_free_bytes", float64(uint64(st.Bavail)*uint64(st.Bsize)))
+		w.sample("dbbm_backup_disk_free_bytes", float64(statfsBytes(st.Bavail, int64(st.Bsize))))
 		w.family("dbbm_backup_disk_size_bytes", "gauge", "Size of the file system holding BACKUP_DIR.")
-		w.sample("dbbm_backup_disk_size_bytes", float64(uint64(st.Blocks)*uint64(st.Bsize)))
+		w.sample("dbbm_backup_disk_size_bytes", float64(statfsBytes(st.Blocks, int64(st.Bsize))))
 	}
 	w.family("dbbm_notification_failures_total", "counter", "Notifications that could not be delivered since start.")
 	w.sample("dbbm_notification_failures_total", float64(m.notifyFailures.Load()))
