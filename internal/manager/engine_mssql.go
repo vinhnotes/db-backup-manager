@@ -124,15 +124,17 @@ func (e mssqlEngine) test(ctx context.Context, m *Manager) error {
 	return nil
 }
 
-// checkSharedDir verifies this container can write to the shared directory.
+// checkSharedDir verifies this container can write to the admin-selected shared
+// mount. The root is intentionally configurable; the temporary name is generated.
 func checkSharedDir(dir string) error {
+	if !validLocalDir(dir) || dir == "/" {
+		return errors.New("Thư mục dùng chung phải là đường dẫn tuyệt đối hợp lệ")
+	}
 	f, err := os.CreateTemp(dir, ".dbbm-check-*")
 	if err != nil {
 		return fmt.Errorf("Không ghi được vào thư mục dùng chung %s trong container", dir)
 	}
-	f.Close()
-	os.Remove(f.Name())
-	return nil
+	return errors.Join(f.Close(), os.Remove(f.Name()))
 }
 
 // serverPath joins the shared directory and name as SQL Server sees them.

@@ -43,8 +43,10 @@ func TestUserPermissions(t *testing.T) {
 	if w = request(m, "GET", "/api/users", "", alice); w.Code != 403 {
 		t.Fatal("non-admin listed users")
 	}
-	if w = request(m, "POST", "/api/connections", `{}`, alice); w.Code != 403 {
-		t.Fatal("non-admin reached connection API")
+	for _, endpoint := range []string{"/api/connections", "/api/connections/test", "/api/notifiers", "/api/notifiers/test"} {
+		if w = request(m, "POST", endpoint, `{}`, alice); w.Code != 403 {
+			t.Fatalf("non-admin reached admin configuration endpoint %s", endpoint)
+		}
 	}
 	w = request(m, "GET", "/api/backups", "", alice)
 	if w.Code != 200 || !strings.Contains(w.Body.String(), "app_db") || strings.Contains(w.Body.String(), "other_db") {

@@ -91,8 +91,10 @@ func within(dir, p string) bool {
 }
 
 func (filesEngine) source(m *Manager) (string, error) {
+	// The admin selects the mount root itself, rather than a relative name
+	// within a fixed application root. Non-admins cannot configure/test it.
 	dir := m.cfg.LocalDir
-	if !validLocalDir(dir) {
+	if !validLocalDir(dir) || dir == "/" {
 		return "", errors.New("Thư mục nguồn chưa được cấu hình")
 	}
 	if backups, err := filepath.Abs(m.cfg.BackupDir); err == nil && (within(dir, backups) || within(backups, dir)) {
@@ -146,12 +148,16 @@ func (e filesEngine) test(_ context.Context, m *Manager) error {
 		return fmt.Errorf("Không có quyền đọc thư mục nguồn %s (container chạy với UID 999)", dir)
 	}
 	if restore := m.cfg.ServerDir; restore != "" {
+		if !validLocalDir(restore) || restore == "/" {
+			return errors.New("Thư mục restore không hợp lệ")
+		}
 		probe, err := os.CreateTemp(restore, ".dbbm-write-test-")
 		if err != nil {
 			return fmt.Errorf("Không ghi được vào thư mục restore %s; kiểm tra volume đã mount và quyền ghi cho UID 999", restore)
 		}
-		probe.Close()
-		os.Remove(probe.Name())
+		if err := errors.Join(probe.Close(), os.Remove(probe.Name())); err != nil {
+			return err
+		}
 	}
 	return nil
 }

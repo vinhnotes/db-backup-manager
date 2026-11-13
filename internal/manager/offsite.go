@@ -385,7 +385,7 @@ func (s *rcloneSession) close() {
 	}
 	opts, _, err := parseRcloneConfig(string(current), true)
 	if err != nil {
-		s.m.logger.Printf("destination %s: cannot parse refreshed rclone config: %v", s.dest.ID, err)
+		s.m.logger.Printf("destination %q: cannot parse refreshed rclone config: %q", s.dest.ID, err.Error())
 		return
 	}
 	var stored string
@@ -397,7 +397,7 @@ func (s *rcloneSession) close() {
 		return
 	}
 	if _, err = s.m.db.Exec(`UPDATE destinations SET config=? WHERE id=? AND config=?`, s.m.sealPassword(renderRcloneConfig(opts)), s.dest.ID, stored); err != nil {
-		s.m.logger.Printf("destination %s: cannot save refreshed token: %v", s.dest.ID, err)
+		s.m.logger.Printf("destination %q: cannot save refreshed token: %q", s.dest.ID, err.Error())
 	}
 }
 
@@ -485,7 +485,7 @@ func (c *countingWriter) Write(p []byte) (int, error) {
 
 // encryptFile encrypts src into dst, verifies the plaintext SHA-256 and
 // returns the ciphertext SHA-256 and size.
-func encryptFile(src, dst, plainSum string, recipients []age.Recipient) (string, int64, error) {
+func encryptFile(src, dst, plainSum string, recipients []age.Recipient) (sum string, size int64, resultErr error) {
 	in, err := os.Open(src)
 	if err != nil {
 		return "", 0, err
@@ -495,7 +495,7 @@ func encryptFile(src, dst, plainSum string, recipients []age.Recipient) (string,
 	if err != nil {
 		return "", 0, err
 	}
-	defer out.Close()
+	defer func() { resultErr = errors.Join(resultErr, out.Close()) }()
 	cipherHash, plainHash := sha256.New(), sha256.New()
 	counter := &countingWriter{w: io.MultiWriter(out, cipherHash)}
 	w, err := age.Encrypt(counter, recipients...)
@@ -514,7 +514,7 @@ func encryptFile(src, dst, plainSum string, recipients []age.Recipient) (string,
 	if hex.EncodeToString(plainHash.Sum(nil)) != plainSum {
 		return "", 0, errors.New("backup checksum mismatch; local archive changed since it was created")
 	}
-	return hex.EncodeToString(cipherHash.Sum(nil)), counter.n, out.Close()
+	return hex.EncodeToString(cipherHash.Sum(nil)), counter.n, nil
 }
 
 func (m *Manager) uploadOffsite(ctx context.Context, j Job) error {
@@ -713,8 +713,7 @@ func (m *Manager) pullOffsite(ctx context.Context, j Job) error {
 		return err
 	}
 	if _, err = io.Copy(out, r); err != nil {
-		out.Close()
-		return fmt.Errorf("Giải mã thất bại (file có thể bị hỏng hoặc bị sửa đổi): %w", err)
+		return fmt.Errorf("Giải mã thất bại (file có thể bị hỏng hoặc bị sửa đổi): %w", errors.Join(err, out.Close()))
 	}
 	if err = out.Close(); err != nil {
 		return err

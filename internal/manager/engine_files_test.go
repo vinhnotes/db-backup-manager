@@ -54,6 +54,26 @@ func filesManager(t *testing.T) (*Manager, string, string) {
 	return &Manager{cfg: cfg}, src, restore
 }
 
+func TestDirectoryProbesValidateRuntimePaths(t *testing.T) {
+	for _, dir := range []string{"", "/", "relative", "/tmp/../etc", "/tmp\nforged"} {
+		if err := checkSharedDir(dir); err == nil {
+			t.Errorf("SQL Server probe accepted %q", dir)
+		}
+		m, _, _ := filesManager(t)
+		m.cfg.LocalDir = dir
+		if _, err := (filesEngine{}).source(m); err == nil {
+			t.Errorf("files source accepted %q", dir)
+		}
+		if dir != "" { // An empty restore path intentionally disables restore.
+			m, _, _ = filesManager(t)
+			m.cfg.ServerDir = dir
+			if err := (filesEngine{}).test(t.Context(), m); err == nil {
+				t.Errorf("files restore probe accepted %q", dir)
+			}
+		}
+	}
+}
+
 func TestFilesBackupRestoreRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	m, src, restore := filesManager(t)

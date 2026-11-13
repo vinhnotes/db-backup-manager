@@ -585,7 +585,11 @@ func (m *Manager) connectionName(id string) string {
 
 // ---- senders ----------------------------------------------------------------
 
-var notifyClient = &http.Client{Timeout: 20 * time.Second}
+// Channels are admin-selected destinations, including private webhooks. Never
+// let that destination redirect a notification (and its signature) elsewhere.
+var notifyClient = &http.Client{Timeout: 20 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+	return http.ErrUseLastResponse
+}}
 
 func (m *Manager) send(ctx context.Context, n Notifier, ev Event) error {
 	subject, body := m.message(n.Lang, ev)
@@ -651,6 +655,9 @@ func (m *Manager) send(ctx context.Context, n Notifier, ev Event) error {
 // postJSON posts v; with a secret, the body is signed in X-DBBM-Signature
 // as "sha256=" + hex(HMAC-SHA256(secret, body)).
 func postJSON(ctx context.Context, target string, v any, secret []byte) error {
+	if !validURL(target, false) {
+		return errors.New("invalid notification URL")
+	}
 	body, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -683,11 +690,14 @@ func postJSON(ctx context.Context, target string, v any, secret []byte) error {
 }
 
 func sendMail(ctx context.Context, cfg map[string]string, subject, body string) error {
+	message, from, to, err := mailMessage(cfg, subject, body)
+	if err != nil {
+		return err
+	}
 	host := cfg["host"]
 	addr := net.JoinHostPort(host, cfg["port"])
 	dialer := &net.Dialer{Timeout: 15 * time.Second}
 	var conn net.Conn
-	var err error
 	tlsConfig := &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}
 	if cfg["security"] == "tls" {
 		conn, err = tls.DialWithDialer(dialer, "tcp", addr, tlsConfig)
@@ -718,35 +728,58 @@ func sendMail(ctx context.Context, cfg map[string]string, subject, body string) 
 			return fmt.Errorf("SMTP auth: %w", err)
 		}
 	}
-	from, _ := mail.ParseAddress(cfg["from"])
-	to, _ := mail.ParseAddressList(cfg["to"])
 	if err = c.Mail(from.Address); err != nil {
 		return err
 	}
-	recipients := []string{}
 	for _, a := range to {
 		if err = c.Rcpt(a.Address); err != nil {
 			return err
 		}
-		recipients = append(recipients, a.String())
 	}
 	w, err := c.Data()
 	if err != nil {
 		return err
 	}
-	var msg bytes.Buffer
-	fmt.Fprintf(&msg, "From: %s\r\nTo: %s\r\nSubject: %s\r\nDate: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n",
-		from.String(), strings.Join(recipients, ", "), mime.QEncoding.Encode("utf-8", subject), time.Now().Format(time.RFC1123Z))
-	qp := quotedprintable.NewWriter(&msg)
-	qp.Write([]byte(strings.ReplaceAll(body, "\n", "\r\n")))
-	qp.Close()
-	if _, err = w.Write(msg.Bytes()); err != nil {
-		return err
+	if _, err = w.Write(message); err != nil {
+		return errors.Join(err, w.Close())
 	}
 	if err = w.Close(); err != nil {
 		return err
 	}
 	return c.Quit()
+}
+
+// mailMessage validates header values at the send boundary, including stored
+// configuration, before opening an SMTP connection. The body stays MIME encoded.
+func mailMessage(cfg map[string]string, subject, body string) ([]byte, *mail.Address, []*mail.Address, error) {
+	for _, value := range []string{cfg["from"], cfg["to"], subject} {
+		if strings.ContainsAny(value, "\r\n\x00") {
+			return nil, nil, nil, errors.New("invalid email header")
+		}
+	}
+	from, err := mail.ParseAddress(cfg["from"])
+	if err != nil {
+		return nil, nil, nil, errors.New("invalid email sender")
+	}
+	to, err := mail.ParseAddressList(cfg["to"])
+	if err != nil || len(to) == 0 || len(to) > 20 {
+		return nil, nil, nil, errors.New("invalid email recipients")
+	}
+	recipients := make([]string, 0, len(to))
+	for _, a := range to {
+		recipients = append(recipients, a.String())
+	}
+	var msg bytes.Buffer
+	fmt.Fprintf(&msg, "From: %s\r\nTo: %s\r\nSubject: %s\r\nDate: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n",
+		from.String(), strings.Join(recipients, ", "), mime.QEncoding.Encode("utf-8", subject), time.Now().Format(time.RFC1123Z))
+	qp := quotedprintable.NewWriter(&msg)
+	if _, err = qp.Write([]byte(strings.ReplaceAll(strings.ReplaceAll(body, "\r\n", "\n"), "\n", "\r\n"))); err != nil {
+		return nil, nil, nil, err
+	}
+	if err = qp.Close(); err != nil {
+		return nil, nil, nil, err
+	}
+	return msg.Bytes(), from, to, nil
 }
 
 // ---- stale schedules --------------------------------------------------------

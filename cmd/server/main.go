@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"dbbackup/internal/manager"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"log"
@@ -11,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 	_ "time/tzdata"
@@ -96,7 +99,7 @@ func command(args []string) int {
 }
 
 // healthcheck calls /api/health on the local server over HTTP or HTTPS,
-// matching TLS_MODE. The certificate is not verified: it may be self-signed.
+// matching TLS_MODE and trusting the locally configured server certificate.
 func healthcheck() int {
 	addr := os.Getenv("LISTEN_ADDR")
 	if addr == "" {
@@ -111,11 +114,28 @@ func healthcheck() int {
 		host = "127.0.0.1"
 	}
 	scheme := "http"
-	if mode, _, _, _ := manager.TLSSettings(); mode != manager.TLSOff {
+	mode, certFile, _, _ := manager.TLSSettings()
+	var tlsConfig *tls.Config
+	if mode != manager.TLSOff {
 		scheme = "https"
+		if mode == manager.TLSSelfSigned {
+			certFile = filepath.Join(filepath.Dir(manager.MetadataDBPath()), "tls", "cert.pem")
+		} else if mode != manager.TLSFile {
+			fmt.Fprintln(os.Stderr, "invalid TLS_MODE")
+			return 1
+		}
+		tlsConfig, err = healthcheckTLSConfig(certFile)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "healthcheck TLS:", err)
+			return 1
+		}
 	}
-	client := &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}} // #nosec G402 -- healthcheck of this process on localhost; its certificate may be self-signed.
-	resp, err := client.Get(scheme + "://" + net.JoinHostPort(host, port) + "/api/health")                                               // #nosec G704 -- URL is built from LISTEN_ADDR (loopback), not from user input.
+	transport := &http.Transport{TLSClientConfig: tlsConfig}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Timeout: 5 * time.Second, Transport: transport, CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+	resp, err := client.Get(scheme + "://" + net.JoinHostPort(host, port) + "/api/health") // #nosec G704 -- URL is built from the operator's LISTEN_ADDR, not request input.
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -126,4 +146,37 @@ func healthcheck() int {
 		return 1
 	}
 	return 0
+}
+
+// Trust only the first certificate from the server's local PEM file. Use its
+// SAN for verification because LISTEN_ADDR can be a bind IP while a file-mode
+// certificate is issued to a DNS name. Normal chain and expiry checks still run.
+func healthcheckTLSConfig(certFile string) (*tls.Config, error) {
+	pemBytes, err := os.ReadFile(certFile)
+	if err != nil {
+		return nil, err
+	}
+	block, _ := pem.Decode(pemBytes)
+	if block == nil || block.Type != "CERTIFICATE" {
+		return nil, fmt.Errorf("invalid server certificate PEM")
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+	var serverName string
+	if len(cert.DNSNames) > 0 {
+		serverName = cert.DNSNames[0]
+	} else if len(cert.IPAddresses) > 0 {
+		serverName = cert.IPAddresses[0].String()
+	} else {
+		return nil, fmt.Errorf("server certificate has no DNS or IP SAN")
+	}
+	// A wildcard SAN needs a concrete hostname for VerifyHostname.
+	if len(serverName) > 2 && serverName[:2] == "*." {
+		serverName = "healthcheck." + serverName[2:]
+	}
+	roots := x509.NewCertPool()
+	roots.AddCert(cert)
+	return &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: roots, ServerName: serverName}, nil
 }
