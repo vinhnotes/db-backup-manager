@@ -1,6 +1,6 @@
 # PostgreSQL clients must be at least the server's major version.
 ARG PG_MAJOR=18
-FROM node:22-bookworm-slim AS web
+FROM node:26-bookworm-slim AS web
 WORKDIR /src/web
 COPY web/package*.json ./
 RUN npm ci
