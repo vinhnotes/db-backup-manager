@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           # Use the exact toolchain from go.mod so standard library vulnerabilities are checked too.
           go-version-file: go.mod
@@ -37,7 +37,7 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: Run gosec
@@ -121,7 +121,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - if: matrix.language == 'go'
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - uses: github/codeql-action/init@v4
