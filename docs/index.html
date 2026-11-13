@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>DB Backup Manager — Backup & khôi phục database tự triển khai</title>
+    <meta
+      name="description"
+      content="Quản lý backup và khôi phục PostgreSQL, MySQL/MariaDB, MongoDB, SQL Server và thư mục file. Tự triển khai, đặt lịch, mã hóa cloud và kiểm thử restore trong một giao diện web."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="DB Backup Manager" />
+    <meta
+      property="og:description"
+      content="Backup, lưu trữ offsite và kiểm thử khôi phục cho database của bạn. Mã nguồn mở, chạy bằng Docker Compose."
+    />
+    <meta property="og:image" content="./images/overview.webp" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./script.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Bỏ qua điều hướng</a>
+
+    <header class="header">
+      <div class="wrap header-inner">
+        <a class="brand" href="./">
+          <img src="./favicon.svg" alt="" width="28" height="28" />
+          DB Backup Manager
+        </a>
+        <nav aria-label="Điều hướng chính">
+          <a href="#features">Tính năng</a>
+          <a href="#engines">Database</a>
+          <a href="#start">Cài đặt</a>
+          <a
+            class="nav-github"
+            href="https://github.com/vinhnotes/db-backup-manager"
+            >GitHub</a
+          >
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero wrap">
+        <p class="kicker">Mã nguồn mở · Tự triển khai · MIT</p>
+        <h1>Backup database, và biết chắc nó khôi phục được.</h1>
+        <p class="lead">
+          Một ứng dụng web nhỏ gọn để đặt lịch backup, lưu bản sao mã hóa lên
+          cloud và kiểm thử restore cho PostgreSQL, MySQL, MongoDB, SQL Server
+          và thư mục file.
+        </p>
+        <div class="actions">
+          <a class="btn btn-primary" href="#start">Cài bằng Docker Compose</a>
+          <a
+            class="btn btn-ghost"
+            href="https://github.com/vinhnotes/db-backup-manager#readme"
+            >Đọc tài liệu</a
+          >
+        </div>
+      </section>
+
+      <figure class="hero-shot wrap">
+        <div class="frame">
+          <img
+            src="./images/overview.webp"
+            width="2000"
+            height="1222"
+            alt="Màn hình tổng quan của một kết nối PostgreSQL: số database, bản backup, lịch đang bật và danh sách backup gần đây đã kiểm thử restore."
+          />
+        </div>
+        <figcaption>
+          Ảnh chụp ứng dụng thật, chạy với dữ liệu demo.
+        </figcaption>
+      </figure>
+
+      <section class="section wrap" id="features">
+        <div class="feature">
+          <div class="feature-text">
+            <p class="kicker">Lịch tự động</p>
+            <h2>Đặt lịch một lần, theo dõi mọi lần chạy.</h2>
+            <p>
+              Lịch theo cron với múi giờ riêng, retention theo số ngày, tự thử
+              lại khi lỗi và chạy bù khi ứng dụng khởi động lại. Có thể tự kiểm
+              thử restore ngay sau mỗi lần backup theo lịch.
+            </p>
+          </div>
+          <figure class="frame">
+            <img
+              src="./images/schedules.webp"
+              width="2320"
+              height="724"
+              loading="lazy"
+              alt="Bảng lịch tự động với ba lịch backup, biểu thức cron, thời điểm chạy tiếp theo và số ngày lưu trữ."
+            />
+          </figure>
+        </div>
+
+        <div class="feature">
+          <div class="feature-text">
+            <p class="kicker">Kiểm chứng</p>
+            <h2>Mỗi bản backup có checksum và kết quả restore.</h2>
+            <p>
+              Bản backup được kiểm tra SHA-256 và định dạng ngay khi tạo.
+              Restore thử vào một database tạm để chắc chắn dữ liệu dùng được,
+              kết quả hiển thị ngay cạnh từng bản sao.
+            </p>
+          </div>
+          <figure class="frame">
+            <img
+              src="./images/backups.webp"
+              width="2320"
+              height="872"
+              loading="lazy"
+              alt="Danh sách backup của kết nối PostgreSQL, mỗi dòng có nhãn SHA-256 và Restore OK."
+            />
+          </figure>
+        </div>
+
+        <div class="feature">
+          <div class="feature-text">
+            <p class="kicker">Kết nối</p>
+            <h2>Thêm máy chủ, kiểm tra kết nối, rồi lưu.</h2>
+            <p>
+              Mật khẩu được mã hóa khi lưu và không bao giờ nằm trên dòng lệnh.
+              Tài khoản restore tách riêng, restore luôn tạo database hoặc thư
+              mục mới thay vì ghi đè.
+            </p>
+          </div>
+          <figure class="frame frame-dialog">
+            <img
+              src="./images/add-connection.webp"
+              width="1120"
+              height="1624"
+              loading="lazy"
+              alt="Hộp thoại thêm kết nối với loại database, host, port, tài khoản và tài khoản restore tùy chọn."
+            />
+          </figure>
+        </div>
+      </section>
+
+      <section class="section wrap more">
+        <h2 class="section-title">Những thứ khác bạn sẽ cần khi vận hành</h2>
+        <dl class="list-grid">
+          <div>
+            <dt>Lưu trữ offsite</dt>
+            <dd>
+              Upload qua rclone lên S3, R2, MinIO, B2, Google Drive, OneDrive,
+              Dropbox, SFTP, WebDAV. Mã hóa bằng age trước khi rời máy chủ.
+            </dd>
+          </div>
+          <div>
+            <dt>Thông báo</dt>
+            <dd>Telegram, Slack, Discord, email SMTP hoặc webhook khi job lỗi hoặc thành công.</dd>
+          </div>
+          <div>
+            <dt>Giám sát</dt>
+            <dd>Endpoint <code>/metrics</code> cho Prometheus, cảnh báo dung lượng đĩa và bản backup cũ.</dd>
+          </div>
+          <div>
+            <dt>Phân quyền</dt>
+            <dd>Nhiều người dùng, giới hạn theo kết nối và database, nhật ký thao tác đầy đủ.</dd>
+          </div>
+          <div>
+            <dt>An toàn mặc định</dt>
+            <dd>HTTPS tự sinh chứng chỉ, chạy non-root, root filesystem chỉ đọc, không cần Docker socket.</dd>
+          </div>
+          <div>
+            <dt>Đa ngôn ngữ</dt>
+            <dd>Giao diện tiếng Việt, tiếng Anh và tiếng Nhật; tùy chỉnh tên, logo và múi giờ.</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="section wrap" id="engines">
+        <h2 class="section-title">Database được hỗ trợ</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Loại</th>
+                <th scope="col">Backup bằng</th>
+                <th scope="col">File</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>PostgreSQL</td>
+                <td><code>pg_dump --format=custom</code></td>
+                <td><code>.dump</code></td>
+              </tr>
+              <tr>
+                <td>MySQL / MariaDB</td>
+                <td><code>mariadb-dump --single-transaction</code></td>
+                <td><code>.sql.gz</code></td>
+              </tr>
+              <tr>
+                <td>MongoDB</td>
+                <td><code>mongodump --archive --gzip</code></td>
+                <td><code>.archive.gz</code></td>
+              </tr>
+              <tr>
+                <td>SQL Server</td>
+                <td><code>BACKUP DATABASE … COPY_ONLY, CHECKSUM</code></td>
+                <td><code>.bak</code></td>
+              </tr>
+              <tr>
+                <td>Thư mục file</td>
+                <td>tar + gzip, đọc lại toàn bộ để kiểm tra</td>
+                <td><code>.tar.gz</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section wrap start" id="start">
+        <div class="start-text">
+          <h2 class="section-title">Chạy trong vài phút</h2>
+          <p>
+            Clone mã nguồn, điền <code>ADMIN_USER</code>,
+            <code>ADMIN_PASSWORD</code> và <code>POSTGRES_NETWORK</code> trong
+            <code>.env</code>, chuẩn bị quyền cho <code>data/</code> và
+            <code>backups/</code>, rồi khởi chạy. Ứng dụng mở tại
+            <code>https://localhost:8088</code>.
+          </p>
+          <a
+            class="link"
+            href="https://github.com/vinhnotes/db-backup-manager#bắt-đầu-nhanh-với-docker-compose"
+            >Hướng dẫn cài đặt đầy đủ →</a
+          >
+        </div>
+        <div class="code">
+          <div class="code-bar">
+            <span>terminal</span>
+            <button type="button" id="copy-command" aria-label="Sao chép lệnh cài đặt">
+              Sao chép
+            </button>
+          </div>
+          <pre><code id="install-command">git clone https://github.com/vinhnotes/db-backup-manager.git
+cd db-backup-manager
+cp .env.example .env && chmod 600 .env
+# sửa .env, rồi:
+sudo install -d -o 999 -g 999 -m 700 ./data ./backups
+docker compose up -d --build</code></pre>
+          <p class="copy-status" id="copy-status" role="status" aria-live="polite"></p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap footer-inner">
+        <span>DB Backup Manager · MIT License</span>
+        <nav aria-label="Liên kết">
+          <a href="https://github.com/vinhnotes/db-backup-manager#readme">Tài liệu</a>
+          <a href="https://github.com/vinhnotes/db-backup-manager/issues">Báo lỗi</a>
+          <a href="https://github.com/vinhnotes/db-backup-manager">GitHub</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

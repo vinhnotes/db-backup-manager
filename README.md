@@ -2,8 +2,6 @@
 
 Ứng dụng tự triển khai để quản lý backup và khôi phục PostgreSQL, MySQL/MariaDB, MongoDB, SQL Server và thư mục file qua giao diện web. Quản lý nhiều kết nối, đặt lịch backup, lưu bản sao được mã hóa trên cloud và theo dõi kết quả trong cùng một nơi.
 
-Backend viết bằng Go, frontend React + TypeScript, metadata lưu trong SQLite. Có thể chạy từ mã nguồn hoặc build thành một Docker image chứa ứng dụng và các công cụ backup cần thiết.
-
 ## Nội dung
 
 - [Tính năng](#tính-năng)
