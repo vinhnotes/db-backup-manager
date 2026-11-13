@@ -2,9 +2,14 @@
 
 A self-hosted web app for managing backups and restores of PostgreSQL, MySQL/MariaDB, MongoDB, SQL Server and file directories. Manage multiple connections, schedule backups, keep encrypted copies in the cloud and track results in one place.
 
+![Overview of a PostgreSQL connection: databases, backups, active schedules and recent backups with restore test results](docs/images/overview.webp)
+
+**Website:** https://vinhnotes.github.io/db-backup-manager/
+
 ## Contents
 
 - [Features](#features)
+- [Screenshots](#screenshots)
 - [Quick start with Docker Compose](#quick-start-with-docker-compose)
 - [Supported databases](#supported-databases)
 - [Configuration and deployment](#configuration-and-deployment)
@@ -30,6 +35,22 @@ A self-hosted web app for managing backups and restores of PostgreSQL, MySQL/Mar
 - User management, per-connection/per-database permissions and an activity log; customizable name, logo and schedule timezone.
 - HTTPS with an auto-generated or your own certificate. The container runs as a non-root user, supports a read-only root filesystem and needs neither the Docker socket nor the Portainer API.
 - UI in English, Vietnamese and Japanese.
+
+## Screenshots
+
+**Backups**: every backup is verified with SHA-256 and shows its restore test result.
+
+![Backup list of a PostgreSQL connection, each row labeled SHA-256 and Restore OK](docs/images/backups.webp)
+
+**Schedules**: cron schedules with next run time and retention.
+
+![Schedules table with cron expressions, next run times and retention days](docs/images/schedules.webp)
+
+**Add connection**: test the connection before saving, with an optional separate restore account.
+
+<img src="docs/images/add-connection.webp" width="420" alt="Add connection dialog with database type, host, port, account and an optional restore account">
+
+_Screenshots of the real app running with demo data._
 
 ## Quick start with Docker Compose
 
