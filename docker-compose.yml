@@ -1,0 +1,62 @@
+services:
+  db-backup-manager:
+    image: db-backup-manager:local
+    build:
+      context: .
+      args:
+        PG_MAJOR: ${PG_MAJOR:-18}
+    restart: unless-stopped
+    init: true
+    ports:
+      - "127.0.0.1:8088:8080"
+    environment:
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env (at least 12 characters)}
+      VIEWER_PASSWORD: ${VIEWER_PASSWORD:-}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      GOOGLE_OAUTH_REDIRECT_URL: ${GOOGLE_OAUTH_REDIRECT_URL:-}
+      TZ: ${TZ:-Asia/Ho_Chi_Minh}
+      JOB_TIMEOUT: ${JOB_TIMEOUT:-2h}
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-10737418240}
+      JOB_RETRIES: ${JOB_RETRIES:-2}
+      JOB_RETRY_DELAY: ${JOB_RETRY_DELAY:-2m}
+      CATCH_UP_MISSED: ${CATCH_UP_MISSED:-true}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+      DISK_ALERT_PERCENT: ${DISK_ALERT_PERCENT:-10}
+      BACKUP_SHRINK_PERCENT: ${BACKUP_SHRINK_PERCENT:-50}
+      BACKUP_MAX_AGE: ${BACKUP_MAX_AGE:-24h}
+      TLS_MODE: ${TLS_MODE:-self-signed}
+      TLS_HOSTS: ${TLS_HOSTS:-}
+      TLS_CERT_FILE: ${TLS_CERT_FILE:-}
+      TLS_KEY_FILE: ${TLS_KEY_FILE:-}
+      COOKIE_SECURE: ${COOKIE_SECURE:-}
+    volumes:
+      - ${DATA_DIR:-./data}:/data
+      - ${BACKUP_DIR:-./backups}:/backups
+      # Backup a folder (connection type "Files"): mount it read-only, plus an
+      # optional restore folder writable by UID 999. See README "Files".
+      # - /var/www/app/uploads:/sources/uploads:ro
+      # - ./restore:/restore
+    # Lets the container reach a DB on the host via host.docker.internal (needed on Linux).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - postgres_network
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+networks:
+  postgres_network:
+    external: true
+    name: ${POSTGRES_NETWORK:?Set POSTGRES_NETWORK to an existing Docker network}
