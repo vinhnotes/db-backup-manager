@@ -110,6 +110,6 @@ func RedirectToHTTPS() http.Handler {
 			return
 		}
 		w.Header().Set("Connection", "close")
-		http.Redirect(w, r, "https://"+r.Host+r.URL.RequestURI(), http.StatusTemporaryRedirect)
+		http.Redirect(w, r, "https://"+r.Host+r.URL.RequestURI(), http.StatusTemporaryRedirect) // #nosec G710 -- redirects the client to the host it requested, only switching to https.
 	})
 }

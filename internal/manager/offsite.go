@@ -350,7 +350,7 @@ func (s *rcloneSession) run(ctx context.Context, stdin io.Reader, stdout io.Writ
 	if s.quick {
 		base = []string{"--config", s.conf, "--stats", "0", "--retries", "1", "--low-level-retries", "2", "--contimeout", "15s", "--timeout", "1m", "--ask-password=false"}
 	}
-	cmd := exec.CommandContext(ctx, s.m.cfg.RcloneBinary, append(base, args...)...)
+	cmd := exec.CommandContext(ctx, s.m.cfg.RcloneBinary, append(base, args...)...) // #nosec G204 -- configured rclone binary with an argument list; no shell is involved.
 	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + s.dir, "TMPDIR=" + s.dir, "XDG_CACHE_HOME=" + s.dir, "XDG_CONFIG_HOME=" + s.dir, "TZ=UTC"}
 	cmd.Stdin, cmd.Stdout = stdin, stdout
 	var stderr limitedBuffer

@@ -106,7 +106,7 @@ func (m *Manager) googleOAuthAPI(w http.ResponseWriter, r *http.Request, path st
 		m.googleOAuthMu.Unlock()
 		// Separate cookie permits Google's top-level redirect without weakening
 		// the application's SameSite=Strict login cookie. Name per flow supports tabs.
-		http.SetCookie(w, &http.Cookie{Name: "dbbm_google_" + id, Value: state, Path: googleOAuthCallbackPath, HttpOnly: true, Secure: redirect.Scheme == "https", SameSite: http.SameSiteLaxMode, MaxAge: 600})
+		http.SetCookie(w, &http.Cookie{Name: "dbbm_google_" + id, Value: state, Path: googleOAuthCallbackPath, HttpOnly: true, Secure: redirect.Scheme == "https", SameSite: http.SameSiteLaxMode, MaxAge: 600}) // #nosec G124 -- HttpOnly, Lax for the OAuth redirect; Secure whenever the redirect URL is https.
 		digest := sha256.Sum256([]byte(verifier))
 		q := url.Values{"client_id": {m.cfg.GoogleOAuthClientID}, "redirect_uri": {m.cfg.GoogleOAuthRedirectURL}, "response_type": {"code"}, "scope": {scope}, "access_type": {"offline"}, "prompt": {"consent"}, "state": {state}, "code_challenge": {base64.RawURLEncoding.EncodeToString(digest[:])}, "code_challenge_method": {"S256"}}
 		respond(w, 200, map[string]string{"id": id, "url": "https://accounts.google.com/o/oauth2/v2/auth?" + q.Encode()})
@@ -163,7 +163,7 @@ func (m *Manager) googleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	flow.Claimed = true
 	snapshot := *flow
 	m.googleOAuthMu.Unlock()
-	http.SetCookie(w, &http.Cookie{Name: "dbbm_google_" + id, Value: "", Path: googleOAuthCallbackPath, HttpOnly: true, Secure: strings.HasPrefix(m.cfg.GoogleOAuthRedirectURL, "https://"), SameSite: http.SameSiteLaxMode, MaxAge: -1})
+	http.SetCookie(w, &http.Cookie{Name: "dbbm_google_" + id, Value: "", Path: googleOAuthCallbackPath, HttpOnly: true, Secure: strings.HasPrefix(m.cfg.GoogleOAuthRedirectURL, "https://"), SameSite: http.SameSiteLaxMode, MaxAge: -1}) // #nosec G124 -- deletion cookie for the OAuth state.
 	// The callback has no login cookie. Check the initiating session directly,
 	// including logout, expiry, account removal and changes in admin privileges.
 	var userID string

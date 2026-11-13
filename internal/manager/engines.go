@@ -108,7 +108,7 @@ func baseEnv() []string {
 // run executes a client tool. Its stderr is kept (truncated, with secrets
 // redacted) for the error message.
 func (m *Manager) run(ctx context.Context, env []string, stdin io.Reader, stdout io.Writer, name string, args ...string) error {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := exec.CommandContext(ctx, name, args...) // #nosec G204 -- fixed client tool name and argument list; no shell is involved.
 	cmd.Env = env
 	cmd.Stdin, cmd.Stdout = stdin, stdout
 	var stderr limitedBuffer

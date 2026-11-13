@@ -1,0 +1,134 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Mỗi thứ Hai 01:00 UTC: bắt lỗ hổng mới công bố dù code không đổi.
+    - cron: "0 1 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  govulncheck:
+    name: Go vulnerabilities (govulncheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          # Dùng đúng toolchain trong go.mod để kiểm tra cả lỗ hổng thư viện chuẩn.
+          go-version-file: go.mod
+      - name: Run govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  gosec:
+    name: Go static analysis (gosec)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Run gosec
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          # G304 (đọc file từ biến) bị tắt: mọi đường dẫn đều nằm dưới DATA_DIR/BACKUP_DIR
+          # với ID đã kiểm tra; path traversal thật vẫn được G703 (taint analysis) bắt.
+          # Cảnh báo sai còn lại được ghi chú tại chỗ bằng `#nosec <rule> -- lý do`.
+          gosec -quiet -exclude=G304 -exclude-dir=web -severity medium -confidence medium \
+            -fmt sarif -out gosec.sarif -stdout -verbose text ./...
+      - name: Upload SARIF
+        if: always() && github.event_name != 'pull_request'
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: gosec.sarif
+          category: gosec
+
+  npm-audit:
+    name: Frontend dependencies (npm audit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npm audit --audit-level=moderate
+
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Run gitleaks
+        # Image ghim theo digest; false positive (dữ liệu test) nằm trong .gitleaksignore.
+        run: |
+          # safe.directory: repo thuộc user runner, khác user trong container.
+          docker run --rm -v "$PWD":/repo -w /repo \
+            -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0='*' \
+            zricethezav/gitleaks:v8.30.0@sha256:691af3c7c5a48b16f187ce3446d5f194838f91238f27270ed36eef6359a574d9 \
+            git --no-banner --redact -v /repo
+
+  trivy:
+    name: Container image & config (Trivy)
+    runs-on: ubuntu-latest
+    env:
+      # Ghim theo digest: không dùng tag trôi nổi cho công cụ bảo mật.
+      TRIVY_IMAGE: aquasec/trivy:0.69.3@sha256:bcc376de8d77cfe086a917230e818dc9f8528e3c852f7b1aff648949b6258d1c
+    steps:
+      - uses: actions/checkout@v6
+      - name: Scan Dockerfile, compose and lockfiles
+        run: |
+          docker run --rm -v "$PWD":/src:ro "$TRIVY_IMAGE" fs --quiet --timeout 15m \
+            --scanners vuln,misconfig,secret --skip-dirs /src/docs \
+            --severity HIGH,CRITICAL --exit-code 1 /src
+      - name: Build image
+        run: docker build -t db-backup-manager:scan .
+      - name: Scan image
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock:ro "$TRIVY_IMAGE" \
+            image --quiet --timeout 15m --ignore-unfixed \
+            --severity HIGH,CRITICAL --exit-code 1 db-backup-manager:scan
+
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [go, javascript-typescript]
+    steps:
+      - uses: actions/checkout@v6
+      - if: matrix.language == 'go'
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-and-quality
+          build-mode: ${{ matrix.language == 'go' && 'autobuild' || 'none' }}
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}

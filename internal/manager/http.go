@@ -72,7 +72,7 @@ func (m *Manager) Handler() http.Handler {
 			return
 		}
 		if r.URL.Path != "/" {
-			if _, err := os.Stat(filepath.Join(m.cfg.WebDir, filepath.Clean("/"+r.URL.Path))); err != nil {
+			if _, err := os.Stat(filepath.Join(m.cfg.WebDir, filepath.Clean("/"+r.URL.Path))); err != nil { // #nosec G703 -- path is cleaned under "/" before joining WebDir, so it cannot leave it.
 				http.NotFound(w, r)
 				return
 			}
@@ -159,7 +159,7 @@ func (m *Manager) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	m.db.Exec(`DELETE FROM sessions WHERE expires_at < ?`, time.Now().Unix())
-	http.SetCookie(w, &http.Cookie{Name: "dbbm_session", Value: t, Path: "/", HttpOnly: true, Secure: m.cfg.SecureCookie, SameSite: http.SameSiteStrictMode, MaxAge: 43200, Expires: expires})
+	http.SetCookie(w, &http.Cookie{Name: "dbbm_session", Value: t, Path: "/", HttpOnly: true, Secure: m.cfg.SecureCookie, SameSite: http.SameSiteStrictMode, MaxAge: 43200, Expires: expires}) // #nosec G124 -- HttpOnly + SameSite=Strict; Secure follows COOKIE_SECURE (on by default with TLS).
 	m.auditBy(body.Username, "auth.login", body.Username)
 	respond(w, 200, map[string]string{"role": role})
 }
@@ -217,7 +217,7 @@ func (m *Manager) api(w http.ResponseWriter, r *http.Request) {
 	case r.Method == "POST" && r.URL.Path == "/api/logout":
 		c, _ := r.Cookie("dbbm_session")
 		m.db.Exec(`DELETE FROM sessions WHERE token=?`, hashToken(c.Value))
-		http.SetCookie(w, &http.Cookie{Name: "dbbm_session", Value: "", Path: "/", HttpOnly: true, Secure: m.cfg.SecureCookie, SameSite: http.SameSiteStrictMode, MaxAge: -1})
+		http.SetCookie(w, &http.Cookie{Name: "dbbm_session", Value: "", Path: "/", HttpOnly: true, Secure: m.cfg.SecureCookie, SameSite: http.SameSiteStrictMode, MaxAge: -1}) // #nosec G124 -- deletion cookie, same attributes as the session cookie.
 		respond(w, 200, map[string]bool{"ok": true})
 	case r.Method == "GET" && r.URL.Path == "/api/databases":
 		connectionID := r.URL.Query().Get("connection_id")

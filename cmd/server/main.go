@@ -114,8 +114,8 @@ func healthcheck() int {
 	if mode, _, _, _ := manager.TLSSettings(); mode != manager.TLSOff {
 		scheme = "https"
 	}
-	client := &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
-	resp, err := client.Get(scheme + "://" + net.JoinHostPort(host, port) + "/api/health")
+	client := &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}} // #nosec G402 -- healthcheck of this process on localhost; its certificate may be self-signed.
+	resp, err := client.Get(scheme + "://" + net.JoinHostPort(host, port) + "/api/health")                                               // #nosec G704 -- URL is built from LISTEN_ADDR (loopback), not from user input.
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1

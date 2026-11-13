@@ -285,7 +285,7 @@ func (e mssqlEngine) restore(ctx context.Context, m *Manager, target, _, file st
 			}
 		}
 		args = append(args, f.logical, serverPath(dir, target+suffix))
-		query += fmt.Sprintf(", MOVE @p%d TO @p%d", len(args)-1, len(args))
+		query += fmt.Sprintf(", MOVE @p%d TO @p%d", len(args)-1, len(args)) // #nosec G202 -- only @pN placeholders are appended; values are bound parameters.
 	}
 	if _, err = db.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("restore into %s failed; inspect and remove it manually before retry: %s", target, m.redact(err.Error()))

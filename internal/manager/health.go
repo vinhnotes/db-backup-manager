@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"sync"
@@ -265,7 +266,7 @@ func (m *Manager) checkDisk() {
 	if !changed {
 		return
 	}
-	detail := fmt.Sprintf("%s / %s (%.1f%%)", formatBytes(int64(free)), formatBytes(int64(total)), pct)
+	detail := fmt.Sprintf("%s / %s (%.1f%%)", formatBytes(clampInt64(free)), formatBytes(clampInt64(total)), pct)
 	m.audit(map[bool]string{true: "disk.low", false: "disk.ok"}[!low], detail)
 	m.notify(Event{Kind: eventDisk, Recovered: low, Detail: detail, Target: m.cfg.BackupDir})
 }
@@ -397,4 +398,12 @@ func shortDuration(d time.Duration) string {
 		s = strings.TrimSuffix(s, "0m")
 	}
 	return s
+}
+
+// clampInt64 converts a byte count without wrapping to a negative number.
+func clampInt64(v uint64) int64 {
+	if v > math.MaxInt64 {
+		return math.MaxInt64
+	}
+	return int64(v)
 }

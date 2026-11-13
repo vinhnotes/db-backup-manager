@@ -325,12 +325,12 @@ func eachEntry(ctx context.Context, file string, fn func(h *tar.Header, name str
 				return err
 			}
 		}
-		if _, err = io.Copy(io.Discard, tr); err != nil {
+		if _, err = io.Copy(io.Discard, tr); err != nil { // #nosec G110 -- content is discarded, nothing is written to disk.
 			return fmt.Errorf("archive tar bị hỏng: %w", err)
 		}
 	}
 	// Read to the end of the gzip stream so its checksum is verified.
-	if _, err = io.Copy(io.Discard, z); err != nil {
+	if _, err = io.Copy(io.Discard, z); err != nil { // #nosec G110 -- content is discarded, nothing is written to disk.
 		return fmt.Errorf("file gzip bị hỏng: %w", err)
 	}
 	return nil
@@ -383,14 +383,14 @@ func extract(ctx context.Context, file, dest string) error {
 			if err := os.MkdirAll(full, 0700); err != nil {
 				return err
 			}
-			dirs = append(dirs, dirMeta{full, os.FileMode(h.Mode).Perm(), h.ModTime})
+			dirs = append(dirs, dirMeta{full, tarPerm(h.Mode), h.ModTime})
 		case tar.TypeSymlink:
 			links = append(links, [2]string{h.Linkname, full})
 		default:
 			if err := os.MkdirAll(filepath.Dir(full), 0700); err != nil {
 				return err
 			}
-			out, err := os.OpenFile(full, os.O_CREATE|os.O_EXCL|os.O_WRONLY, os.FileMode(h.Mode).Perm()|0600)
+			out, err := os.OpenFile(full, os.O_CREATE|os.O_EXCL|os.O_WRONLY, tarPerm(h.Mode)|0600)
 			if err != nil {
 				return err
 			}
@@ -401,7 +401,7 @@ func extract(ctx context.Context, file, dest string) error {
 			if err != nil {
 				return err
 			}
-			os.Chmod(full, os.FileMode(h.Mode).Perm())
+			os.Chmod(full, tarPerm(h.Mode))
 			os.Chtimes(full, h.ModTime, h.ModTime)
 		}
 		return nil
@@ -466,12 +466,28 @@ func (filesEngine) drop(_ context.Context, m *Manager, database string) error {
 		return errors.New("invalid restore folder")
 	}
 	dir := filepath.Join(m.cfg.ServerDir, database)
+	root, err := os.OpenRoot(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	defer root.Close()
 	// Make every directory writable first so read-only ones can be emptied.
-	filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+	// Going through os.Root keeps a directory swapped for a symlink during the
+	// walk from redirecting chmod outside the restore folder.
+	fs.WalkDir(root.FS(), ".", func(p string, d fs.DirEntry, err error) error {
 		if err == nil && d.IsDir() {
-			os.Chmod(p, 0700)
+			root.Chmod(p, 0700) // #nosec G302 -- directories need the execute bit; owner only.
 		}
 		return nil
 	})
 	return os.RemoveAll(dir)
+}
+
+// tarPerm keeps only the permission bits of a tar header mode, so a crafted
+// header cannot set setuid/sticky bits or overflow the conversion.
+func tarPerm(mode int64) os.FileMode {
+	return os.FileMode(uint32(mode & 0o777)) // #nosec G115 -- masked to 9 bits.
 }
