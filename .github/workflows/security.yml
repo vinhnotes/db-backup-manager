@@ -5,7 +5,7 @@ on:
     branches: [main]
   pull_request:
   schedule:
-    # Mỗi thứ Hai 01:00 UTC: bắt lỗ hổng mới công bố dù code không đổi.
+    # Every Monday 01:00 UTC: catch newly disclosed vulnerabilities even when code is unchanged.
     - cron: "0 1 * * 1"
   workflow_dispatch:
 
@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
         with:
-          # Dùng đúng toolchain trong go.mod để kiểm tra cả lỗ hổng thư viện chuẩn.
+          # Use the exact toolchain from go.mod so standard library vulnerabilities are checked too.
           go-version-file: go.mod
       - name: Run govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
@@ -43,9 +43,9 @@ jobs:
       - name: Run gosec
         run: |
           go install github.com/securego/gosec/v2/cmd/gosec@latest
-          # G304 (đọc file từ biến) bị tắt: mọi đường dẫn đều nằm dưới DATA_DIR/BACKUP_DIR
-          # với ID đã kiểm tra; path traversal thật vẫn được G703 (taint analysis) bắt.
-          # Cảnh báo sai còn lại được ghi chú tại chỗ bằng `#nosec <rule> -- lý do`.
+          # G304 (file read via variable) is disabled: all paths live under DATA_DIR/BACKUP_DIR
+          # with validated IDs; real path traversal is still caught by G703 (taint analysis).
+          # Remaining false positives are annotated inline with `#nosec <rule> -- reason`.
           gosec -quiet -exclude=G304 -exclude-dir=web -severity medium -confidence medium \
             -fmt sarif -out gosec.sarif -stdout -verbose text ./...
       - name: Upload SARIF
@@ -79,9 +79,9 @@ jobs:
         with:
           fetch-depth: 0
       - name: Run gitleaks
-        # Image ghim theo digest; false positive (dữ liệu test) nằm trong .gitleaksignore.
+        # Image pinned by digest; false positives (test data) are listed in .gitleaksignore.
         run: |
-          # safe.directory: repo thuộc user runner, khác user trong container.
+          # safe.directory: the repo is owned by the runner user, not the container user.
           docker run --rm -v "$PWD":/repo -w /repo \
             -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0='*' \
             zricethezav/gitleaks:v8.30.0@sha256:691af3c7c5a48b16f187ce3446d5f194838f91238f27270ed36eef6359a574d9 \
@@ -91,7 +91,7 @@ jobs:
     name: Container image & config (Trivy)
     runs-on: ubuntu-latest
     env:
-      # Ghim theo digest: không dùng tag trôi nổi cho công cụ bảo mật.
+      # Pinned by digest: no floating tags for security tools.
       TRIVY_IMAGE: aquasec/trivy:0.69.3@sha256:bcc376de8d77cfe086a917230e818dc9f8528e3c852f7b1aff648949b6258d1c
     steps:
       - uses: actions/checkout@v6

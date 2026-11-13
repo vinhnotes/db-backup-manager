@@ -1,123 +1,123 @@
-# Deploy qua Portainer
+# Deploying with Portainer
 
-Tài liệu dành cho Docker Standalone quản lý bằng Portainer. Không dùng được cho Swarm.
+This guide is for Docker Standalone managed by Portainer. It does not work with Swarm.
 
-| File | Dùng để |
+| File | Purpose |
 |---|---|
-| [docker-compose.portainer.yml](docker-compose.portainer.yml) | Nội dung stack dán vào Portainer |
-| [stack.env.example](stack.env.example) | Mẫu biến môi trường cho stack |
+| [docker-compose.portainer.yml](docker-compose.portainer.yml) | Stack definition to paste into Portainer |
+| [stack.env.example](stack.env.example) | Environment variable template for the stack |
 
-Image do bạn tự build và cung cấp: `${IMAGE}:${IMAGE_TAG}`. `IMAGE` là repository không kèm tag; dự án không đặt sẵn registry.
+You build and provide the image yourself: `${IMAGE}:${IMAGE_TAG}`. `IMAGE` is the repository without a tag; the project does not preconfigure a registry.
 
-## 1. Build và push image (máy dev)
+## 1. Build and push the image (dev machine)
 
 ```sh
-# Thay địa chỉ registry và namespace bên dưới bằng thông tin của bạn.
+# Replace the registry address and namespace below with your own.
 export IMAGE=registry.example.com/your-namespace/db-backup-manager
 docker login registry.example.com
-make docker-push TAG=v1.0.0        # push :v1.0.0 và :latest
+make docker-push TAG=v1.0.0        # pushes :v1.0.0 and :latest
 ```
 
-Có thể truyền repository trực tiếp: `./scripts/docker-push.sh v1.0.0 "$IMAGE"`. Script không tự đọc `.env`; hãy export `IMAGE` hoặc truyền qua dòng lệnh. Không truyền tag trong `IMAGE`. Nếu không chỉ định tag, script dùng git short SHA (thêm `-dirty` khi có thay đổi chưa commit). Với Docker Hub, dùng `IMAGE=your-namespace/db-backup-manager` và `docker login`.
+You can also pass the repository directly: `./scripts/docker-push.sh v1.0.0 "$IMAGE"`. The script does not read `.env`; export `IMAGE` or pass it on the command line. Do not include a tag in `IMAGE`. If no tag is given, the script uses the git short SHA (with `-dirty` appended when there are uncommitted changes). For Docker Hub, use `IMAGE=your-namespace/db-backup-manager` and `docker login`.
 
-Để đăng nhập tự động, truyền đồng thời `REGISTRY_USER` và `REGISTRY_PASSWORD` qua môi trường (ví dụ secret của CI). `REGISTRY` mặc định được suy ra từ `IMAGE`, hoặc `docker.io` với Docker Hub; có thể đặt riêng nếu cần. Không lưu thông tin đăng nhập trong repository.
+To log in automatically, pass both `REGISTRY_USER` and `REGISTRY_PASSWORD` through the environment (e.g. CI secrets). `REGISTRY` is derived from `IMAGE` by default, or `docker.io` for Docker Hub; set it explicitly if needed. Never store credentials in the repository.
 
-Mặc định build `linux/amd64`. Đổi bằng `PLATFORMS=linux/arm64 make docker-push ...` nếu server là ARM.
+The default build platform is `linux/amd64`. Change it with `PLATFORMS=linux/arm64 make docker-push ...` if your server is ARM.
 
-## 2. Khai báo registry trong Portainer (một lần)
+## 2. Add the registry to Portainer (once)
 
 **Registries → Add registry → Custom registry**
 
-- Name: tên gợi nhớ do bạn đặt
-- Registry URL: hostname registry của bạn (ví dụ `registry.example.com`)
-- Nếu dùng private registry, bật **Authentication** và nhập tài khoản registry của bạn. Image public không cần thông tin đăng nhập.
+- Name: a display name of your choice
+- Registry URL: your registry hostname (e.g. `registry.example.com`)
+- For a private registry, enable **Authentication** and enter your registry account. Public images need no credentials.
 
-## 3. Tạo stack
+## 3. Create the stack
 
 **Stacks → Add stack**
 
 1. Name: `db-backup-manager`
 2. Build method:
-   - **Web editor**: dán nội dung [docker-compose.portainer.yml](docker-compose.portainer.yml), hoặc
-   - **Repository**: trỏ tới repo, Compose path `deploy/docker-compose.portainer.yml`.
-3. **Environment variables → Advanced mode**: dán [stack.env.example](stack.env.example) rồi điền tối thiểu:
-   - `IMAGE`: repository vừa push, không kèm tag (giống bước 1)
-   - `IMAGE_TAG`: tag vừa push, ví dụ `v1.0.0`
-   - `ADMIN_PASSWORD`: ít nhất 12 ký tự
-   - `POSTGRES_NETWORK`: tên network của stack PostgreSQL (xem bằng `docker network ls` trên server)
+   - **Web editor**: paste the contents of [docker-compose.portainer.yml](docker-compose.portainer.yml), or
+   - **Repository**: point to the repo, Compose path `deploy/docker-compose.portainer.yml`.
+3. **Environment variables → Advanced mode**: paste [stack.env.example](stack.env.example) and fill in at least:
+   - `IMAGE`: the repository you just pushed, without a tag (same as step 1)
+   - `IMAGE_TAG`: the tag you just pushed, e.g. `v1.0.0`
+   - `ADMIN_PASSWORD`: at least 12 characters
+   - `POSTGRES_NETWORK`: the network name of your PostgreSQL stack (check with `docker network ls` on the server)
 4. **Deploy the stack**.
 
-Không cần tạo thư mục hay `chown` trước. Xem mục [Lưu trữ dữ liệu](#lưu-trữ-dữ-liệu).
+No need to create directories or `chown` beforehand. See [Data storage](#data-storage).
 
-## 4. Kiểm tra và truy cập
+## 4. Verify and access
 
-- **Containers → db-backup-manager** phải chuyển sang `healthy` sau 10–30 giây. Nếu không, xem **Logs**.
-- Port chỉ mở trên `127.0.0.1`. Truy cập từ máy cá nhân bằng SSH tunnel:
+- **Containers → db-backup-manager** should become `healthy` within 10–30 seconds. If not, check **Logs**.
+- The port is only published on `127.0.0.1`. Access it from your workstation with an SSH tunnel:
 
   ```sh
   ssh -N -L 8088:127.0.0.1:8088 user@SERVER_IP
   ```
 
-  rồi mở **https://localhost:8088** (gõ `http://` cũng tự chuyển sang `https://`). Trình duyệt cảnh báo chứng chỉ ở lần đầu (self-signed, tự sinh trong volume data): chọn **Advanced → Proceed**.
-- Nếu mở trực tiếp bằng IP/tên miền server, thêm chúng vào `TLS_HOSTS` để chứng chỉ khớp địa chỉ. Chi tiết: [README → HTTPS](../README.md#https).
-- Khi thêm kết nối DB trên giao diện, host là **tên service/container Postgres** trong network chung (ví dụ `postgres`), không phải `localhost`.
+  then open **https://localhost:8088** (typing `http://` also redirects to `https://`). The browser warns about the certificate the first time (self-signed, generated in the data volume): choose **Advanced → Proceed**.
+- If you open it directly by server IP/domain name, add them to `TLS_HOSTS` so the certificate matches the address. Details: [README → HTTPS](../README.md#https).
+- When adding a database connection in the UI, the host is the **Postgres service/container name** on the shared network (e.g. `postgres`), not `localhost`.
 
-## Lưu trữ dữ liệu
+## Data storage
 
-Mặc định (để trống `DATA_DIR`, `BACKUP_DIR`), stack dùng hai **named volume**:
+By default (with `DATA_DIR` and `BACKUP_DIR` left empty), the stack uses two **named volumes**:
 
-| Volume | Mount | Nội dung |
+| Volume | Mount | Contents |
 |---|---|---|
-| `db-backup-manager-data` | `/data` | `metadata.db`, `connections.key`, `tls/` (chứng chỉ HTTPS) |
-| `db-backup-manager-backups` | `/backups` | File backup `.dump` |
+| `db-backup-manager-data` | `/data` | `metadata.db`, `connections.key`, `tls/` (HTTPS certificate) |
+| `db-backup-manager-backups` | `/backups` | Backup files (`.dump`, …) |
 
-Docker tự tạo volume ở lần deploy đầu và sao chép quyền sở hữu từ image (user `postgres`, UID 999), nên container ghi được ngay. Xóa hay deploy lại stack **không** xóa volume. Chỉ mất khi xóa volume thủ công trong **Volumes**.
+Docker creates the volumes on first deploy and copies ownership from the image (user `postgres`, UID 999), so the container can write to them right away. Removing or redeploying the stack does **not** remove the volumes. They are only lost if you delete them manually under **Volumes**.
 
-Vị trí thật trên server: `/var/lib/docker/volumes/<tên volume>/_data`.
+Actual location on the server: `/var/lib/docker/volumes/<volume name>/_data`.
 
-### Dùng thư mục trên host (tùy chọn)
+### Using host directories (optional)
 
-Chỉ cần khi muốn backup nằm ở ổ/thư mục cụ thể. Đặt `DATA_DIR`, `BACKUP_DIR` thành **đường dẫn tuyệt đối** và tạo trước:
+Only needed if you want backups on a specific disk/directory. Set `DATA_DIR` and `BACKUP_DIR` to **absolute paths** and create them first:
 
 ```sh
 sudo install -d -o 999 -g 999 -m 700 /opt/db-backup-manager/data /opt/backups/db
 ```
 
-Phải tạo trước vì với bind mount, Docker tự tạo thư mục còn thiếu nhưng thuộc `root`, trong khi container chạy bằng UID 999 nên không ghi được (`permission denied` khi mở `metadata.db`).
+They must be created first because, with bind mounts, Docker creates missing directories owned by `root`, while the container runs as UID 999 and cannot write to them (`permission denied` when opening `metadata.db`).
 
-Nếu đã gán 999 mà vẫn lỗi, kiểm tra:
+If it still fails after assigning UID 999, check:
 
-- **Đường dẫn tương đối** (`./data`): trong Portainer, đường dẫn này không trỏ tới thư mục bạn đã `chown`. Luôn dùng đường dẫn tuyệt đối.
-- **File cũ bên trong** thuộc user khác (copy từ máy khác, từng chạy bằng root): `chown` phải có `-R`.
+- **Relative paths** (`./data`): in Portainer, this path does not point to the directory you `chown`ed. Always use absolute paths.
+- **Existing files inside** owned by another user (copied from another machine, or previously run as root): `chown` needs `-R`.
 
   ```sh
   sudo chown -R 999:999 /opt/db-backup-manager/data /opt/backups/db
   ```
 
-- **Thư mục cha** không cho UID 999 đi qua (ví dụ thư mục cha có quyền `700` thuộc root).
-- **Docker rootless hoặc `userns-remap`**: UID trong container được ánh xạ sang UID khác trên host. Khi đó nên dùng named volume.
-- **SELinux** (RHEL/CentOS/Rocky): thêm hậu tố `:Z` vào volume, ví dụ `/opt/backups/db:/backups:Z`.
+- **A parent directory** that UID 999 cannot traverse (e.g. a root-owned parent with mode `700`).
+- **Rootless Docker or `userns-remap`**: container UIDs map to different UIDs on the host. Use named volumes in that case.
+- **SELinux** (RHEL/CentOS/Rocky): add the `:Z` suffix to the volume, e.g. `/opt/backups/db:/backups:Z`.
 
-## Cập nhật phiên bản
+## Upgrading
 
-1. Máy dev: `IMAGE=registry.example.com/your-namespace/db-backup-manager make docker-push TAG=v1.0.1` (thay bằng repository của bạn)
-2. Portainer: **Stacks → db-backup-manager → Editor**, đổi `IMAGE_TAG=v1.0.1` → **Update the stack**.
-   - Nếu dùng `latest`, bật **Re-pull image and redeploy**.
+1. Dev machine: `IMAGE=registry.example.com/your-namespace/db-backup-manager make docker-push TAG=v1.0.1` (replace with your repository)
+2. Portainer: **Stacks → db-backup-manager → Editor**, change `IMAGE_TAG=v1.0.1` → **Update the stack**.
+   - If you use `latest`, enable **Re-pull image and redeploy**.
 
-Dữ liệu trong volume được giữ nguyên.
+Data in the volumes is preserved.
 
-## Sao lưu chính công cụ
+## Backing up the tool itself
 
-Sao lưu **cả** `metadata.db` và `connections.key` (trong volume data). Mất `connections.key` thì không giải mã được mật khẩu kết nối và cấu hình cloud đã lưu.
+Back up **both** `metadata.db` and `connections.key` (in the data volume). Without `connections.key`, stored connection passwords and cloud configs cannot be decrypted.
 
 ```sh
 docker run --rm -v db-backup-manager-data:/data:ro -v "$PWD":/out debian:bookworm-slim \
   tar czf /out/dbbm-data-$(date +%F).tgz -C /data .
 ```
 
-## Xử lý sự cố
+## Troubleshooting
 
-- **Quên mật khẩu admin**: **Containers → db-backup-manager → Console**, chạy `db-backup-manager reset-admin-password`.
-- **`network postgres_network not found`**: sai `POSTGRES_NETWORK`. Kiểm tra lại bằng `docker network ls`.
-- **`pull access denied` / `unauthorized`**: chưa khai báo registry (bước 2) hoặc sai tài khoản.
-- **Chạy sau reverse proxy HTTPS**: đặt `TLS_MODE=off`, `COOKIE_SECURE=true` và cho proxy kết nối tới port của container.
+- **Forgot the admin password**: **Containers → db-backup-manager → Console**, run `db-backup-manager reset-admin-password`.
+- **`network postgres_network not found`**: wrong `POSTGRES_NETWORK`. Double-check with `docker network ls`.
+- **`pull access denied` / `unauthorized`**: the registry was not added (step 2) or the credentials are wrong.
+- **Behind an HTTPS reverse proxy**: set `TLS_MODE=off`, `COOKIE_SECURE=true` and let the proxy connect to the container's port.

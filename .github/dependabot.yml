@@ -1,4 +1,4 @@
-# Tự mở PR cập nhật khi dependency có bản vá (kể cả bản vá bảo mật).
+# Automatically open PRs when dependencies get patches (including security fixes).
 version: 2
 updates:
   - package-ecosystem: gomod

@@ -7,10 +7,10 @@ copyButton.addEventListener("click", async () => {
       document.querySelector("#install-command").textContent,
     );
     copyStatus.textContent =
-      "Đã sao chép. Nhớ cấu hình .env và quyền thư mục trước khi khởi chạy.";
-    copyButton.textContent = "Đã sao chép ✓";
+      "Copied. Remember to configure .env and directory permissions before starting.";
+    copyButton.textContent = "Copied ✓";
   } catch {
     copyStatus.textContent =
-      "Không thể truy cập clipboard. Bạn có thể chọn và sao chép các lệnh bên trên.";
+      "Clipboard unavailable. You can select and copy the commands above.";
   }
 });
