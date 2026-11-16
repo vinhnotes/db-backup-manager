@@ -91,13 +91,15 @@ func within(dir, p string) bool {
 }
 
 func (filesEngine) source(m *Manager) (string, error) {
-	// The admin selects the mount root itself, rather than a relative name
-	// within a fixed application root. Non-admins cannot configure/test it.
-	dir := m.cfg.LocalDir
-	if !validLocalDir(dir) || dir == "/" {
-		return "", errors.New("Thư mục nguồn chưa được cấu hình")
+	dir, err := allowedLocalDirectory(m.cfg.LocalDir)
+	if err != nil {
+		return "", err
 	}
-	if backups, err := filepath.Abs(m.cfg.BackupDir); err == nil && (within(dir, backups) || within(backups, dir)) {
+	backups, err := resolveLocalPath(m.cfg.BackupDir)
+	if err != nil {
+		return "", err
+	}
+	if within(dir, backups) || within(backups, dir) {
 		return "", errors.New("Thư mục nguồn không được chứa (hoặc nằm trong) thư mục lưu backup")
 	}
 	info, err := os.Stat(dir)
@@ -148,8 +150,9 @@ func (e filesEngine) test(_ context.Context, m *Manager) error {
 		return fmt.Errorf("Không có quyền đọc thư mục nguồn %s (container chạy với UID 999)", dir)
 	}
 	if restore := m.cfg.ServerDir; restore != "" {
-		if !validLocalDir(restore) || restore == "/" {
-			return errors.New("Thư mục restore không hợp lệ")
+		restore, err := allowedLocalDirectory(restore)
+		if err != nil {
+			return err
 		}
 		probe, err := os.CreateTemp(restore, ".dbbm-write-test-")
 		if err != nil {
@@ -350,8 +353,11 @@ func (filesEngine) verify(ctx context.Context, _ *Manager, file string) error {
 }
 
 func (e filesEngine) restore(ctx context.Context, m *Manager, target, _, file string) error {
-	root := m.cfg.ServerDir
-	if !validLocalDir(root) || !dbName.MatchString(target) {
+	root, err := allowedLocalDirectory(m.cfg.ServerDir)
+	if err != nil {
+		return err
+	}
+	if !dbName.MatchString(target) {
 		return errors.New("Chưa cấu hình thư mục restore hoặc tên thư mục đích không hợp lệ")
 	}
 	dest := filepath.Join(root, target)
@@ -439,10 +445,14 @@ func extract(ctx context.Context, file, dest string) error {
 // ---- restore tests -----------------------------------------------------------
 
 func (filesEngine) exists(_ context.Context, m *Manager, database string) (bool, error) {
-	if !validLocalDir(m.cfg.ServerDir) {
-		return false, errors.New("Chưa cấu hình thư mục restore")
+	root, err := allowedLocalDirectory(m.cfg.ServerDir)
+	if err != nil {
+		return false, err
 	}
-	_, err := os.Lstat(filepath.Join(m.cfg.ServerDir, database))
+	if !dbName.MatchString(database) {
+		return false, errors.New("invalid restore folder")
+	}
+	_, err = os.Lstat(filepath.Join(root, database))
 	if errors.Is(err, fs.ErrNotExist) {
 		return false, nil
 	}
@@ -451,8 +461,15 @@ func (filesEngine) exists(_ context.Context, m *Manager, database string) (bool,
 
 // inspect returns the number of regular files restored.
 func (filesEngine) inspect(ctx context.Context, m *Manager, database string) (int, error) {
+	root, err := allowedLocalDirectory(m.cfg.ServerDir)
+	if err != nil {
+		return 0, err
+	}
+	if !dbName.MatchString(database) {
+		return 0, errors.New("invalid restore folder")
+	}
 	n := 0
-	err := filepath.WalkDir(filepath.Join(m.cfg.ServerDir, database), func(_ string, d fs.DirEntry, err error) error {
+	err = filepath.WalkDir(filepath.Join(root, database), func(_ string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -468,10 +485,14 @@ func (filesEngine) inspect(ctx context.Context, m *Manager, database string) (in
 }
 
 func (filesEngine) drop(_ context.Context, m *Manager, database string) error {
-	if !validLocalDir(m.cfg.ServerDir) || !dbName.MatchString(database) {
+	base, err := allowedLocalDirectory(m.cfg.ServerDir)
+	if err != nil {
+		return err
+	}
+	if !dbName.MatchString(database) {
 		return errors.New("invalid restore folder")
 	}
-	dir := filepath.Join(m.cfg.ServerDir, database)
+	dir := filepath.Join(base, database)
 	root, err := os.OpenRoot(dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil

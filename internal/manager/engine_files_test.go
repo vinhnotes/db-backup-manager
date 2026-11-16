@@ -42,6 +42,7 @@ func writeTarGz(t *testing.T, path string, entries []tar.Header, content map[str
 func filesManager(t *testing.T) (*Manager, string, string) {
 	t.Helper()
 	dir := t.TempDir()
+	t.Setenv("LOCAL_PATH_ALLOWED_ROOTS", dir)
 	src, restore := filepath.Join(dir, "src"), filepath.Join(dir, "restore")
 	os.MkdirAll(src, 0755)
 	os.MkdirAll(restore, 0755)
@@ -228,6 +229,7 @@ func TestFilesConnectionValidation(t *testing.T) {
 	// include itself).
 	dir := t.TempDir()
 	m := &Manager{cfg: Config{BackupDir: filepath.Join(dir, "backups"), LocalDir: dir}}
+	t.Setenv("LOCAL_PATH_ALLOWED_ROOTS", dir)
 	if (filesEngine{}).test(context.Background(), m) == nil {
 		t.Fatal("source containing the backup folder accepted")
 	}
@@ -237,6 +239,7 @@ func TestFilesConnectionAPIBackupUploadAndRestore(t *testing.T) {
 	m := testManager(t)
 	admin := loginCookie(t, m, "admin", "test-admin-password")
 	dir := t.TempDir()
+	t.Setenv("LOCAL_PATH_ALLOWED_ROOTS", dir)
 	src, restore := filepath.Join(dir, "src"), filepath.Join(dir, "restore")
 	os.MkdirAll(src, 0755)
 	os.MkdirAll(restore, 0755)

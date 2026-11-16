@@ -145,6 +145,8 @@ SQL Server has no remote dump tool: `BACKUP DATABASE` writes the `.bak` file **o
 - **Path on SQL Server**: the directory as SQL Server sees it, e.g. `/var/opt/mssql/backup` or `D:\Backup`.
 - **Path in this container**: the same directory mounted into the manager container, e.g. `/mssql-backup`.
 
+The container path must be within `LOCAL_PATH_ALLOWED_ROOTS` (default `/sources,/restore,/mssql-backup`). Set this comma-separated environment variable before restarting if your shared mount uses another path. Paths are checked during connection tests, backups and restores, including stored connections.
+
 The manager writes the `.bak` there, moves it into `BACKUP_DIR`, then deletes it from the shared directory. On restore, the manager copies the backup into the shared directory (mode `0644`) for SQL Server to read, and deletes it afterwards. Example on a single Docker host:
 
 ```yaml
@@ -194,6 +196,8 @@ The container can only read directories mounted into it. Add volumes to `docker-
 ```
 
 Then add a **Files** connection: **Source folder** `/sources/uploads`, **Restore folder** `/restore` (leave empty if you don't need restores).
+
+Source and restore directories must be within `LOCAL_PATH_ALLOWED_ROOTS` (default `/sources,/restore,/mssql-backup`). For existing connections using other mounts, add their container roots to this environment variable and restart before running jobs. The filesystem root `/` is not accepted. Symlinks resolving outside the approved roots are rejected; keep the mount roots and their parents under operator control.
 
 - The container runs as UID 999: source files must be readable by this UID (default `644`/`755` permissions usually are). The restore directory must be writable by UID 999, e.g. `chown 999:999 ./restore`.
 - Backups keep the directory structure, permissions (without setuid/setgid), modification times and symlinks. Ownership (UID/GID) is not kept. Sockets, devices and pipes are skipped.
@@ -463,6 +467,8 @@ Admins go to **Notifications** (Account menu) → **Add channel**, choose a type
 
 Tokens, webhook URLs and SMTP passwords are encrypted with AES-GCM like connection passwords and are never returned by the API; leave them empty when editing to keep them. Delivery failures are recorded in the activity log (`notifier.failed`) and the `dbbm_notification_failures_total` metric.
 
+HTTP notification destinations must match an origin in `NOTIFY_ALLOWED_ORIGINS`. The default list covers Telegram, Slack and Discord: `https://api.telegram.org,https://hooks.slack.com,https://discord.com,https://discordapp.com`. Add the exact origin of each custom webhook (for example `https://alerts.example.com` or `http://alerts.internal:8080`) in the deployment environment and restart. Keep the existing provider origins if you still use them. Origins contain only the scheme, host and optional port; put the path, query and secret in the channel settings. Redirects are rejected. API administrators cannot authorize another origin through the web UI.
+
 ### Retries and catch-up
 
 | Variable | Default | Meaning |
@@ -627,6 +633,8 @@ Connection passwords and cloud configs are encrypted with the `connections.key` 
 Only restore archives from trusted sources. Checksum and format checks do not replace verifying data after a restore. Read the [operating procedure](#operating-procedure) and [limitations](#limitations) before using this for important data.
 
 If a secret has been exposed, revoke or rotate it; removing it from the current version does not remove it from Git history. When reporting a security issue, do not post secrets, real data or sensitive exploit details in a public issue; use the hosting platform's private reporting channel if the repository has it enabled.
+
+See [CodeQL email triage](.github/codeql/triage.md) for the reviewed `go/email-injection` false positive, its SMTP regression tests and the specific dismissal rationale. The rule remains enabled.
 
 ## License
 

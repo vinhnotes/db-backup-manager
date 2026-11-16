@@ -655,14 +655,11 @@ func (m *Manager) send(ctx context.Context, n Notifier, ev Event) error {
 // postJSON posts v; with a secret, the body is signed in X-DBBM-Signature
 // as "sha256=" + hex(HMAC-SHA256(secret, body)).
 func postJSON(ctx context.Context, target string, v any, secret []byte) error {
-	if !validURL(target, false) {
-		return errors.New("invalid notification URL")
-	}
 	body, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, "POST", target, bytes.NewReader(body))
+	req, err := notificationRequest(ctx, target, body)
 	if err != nil {
 		return err
 	}
@@ -687,6 +684,36 @@ func postJSON(ctx context.Context, target string, v any, secret []byte) error {
 		return fmt.Errorf("HTTP %d: %s", res.StatusCode, strings.TrimSpace(string(detail)))
 	}
 	return nil
+}
+
+// Only the process operator can authorize origins; notification API input may
+// select a path/query on those origins, but cannot select a new network peer.
+// Build the request from the trusted origin instead of reusing the input URL.
+func notificationRequest(ctx context.Context, target string, body []byte) (*http.Request, error) {
+	if !validURL(target, false) {
+		return nil, errors.New("invalid notification URL")
+	}
+	u, err := url.Parse(target)
+	if err != nil || u.Fragment != "" || u.Opaque != "" {
+		return nil, errors.New("invalid notification URL")
+	}
+	for _, origin := range strings.Split(env("NOTIFY_ALLOWED_ORIGINS", "https://api.telegram.org,https://hooks.slack.com,https://discord.com,https://discordapp.com"), ",") {
+		origin = strings.TrimRight(strings.TrimSpace(origin), "/")
+		approved, err := url.Parse(origin)
+		if err != nil || !validURL(origin, false) || approved.Path != "" || approved.RawQuery != "" || approved.Fragment != "" || approved.Opaque != "" {
+			continue
+		}
+		if u.Scheme != approved.Scheme || !strings.EqualFold(u.Host, approved.Host) {
+			continue
+		}
+		req, err := http.NewRequestWithContext(ctx, "POST", origin+"/", bytes.NewReader(body))
+		if err != nil {
+			return nil, err
+		}
+		req.URL.Path, req.URL.RawPath, req.URL.RawQuery, req.URL.ForceQuery = u.Path, u.RawPath, u.RawQuery, u.ForceQuery
+		return req, nil
+	}
+	return nil, errors.New("notification origin is not in NOTIFY_ALLOWED_ORIGINS")
 }
 
 func sendMail(ctx context.Context, cfg map[string]string, subject, body string) error {

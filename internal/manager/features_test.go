@@ -97,6 +97,7 @@ func TestNotifierAPIKeepsSecretsAndSendsSignedWebhook(t *testing.T) {
 		mu.Unlock()
 	}))
 	defer srv.Close()
+	t.Setenv("NOTIFY_ALLOWED_ORIGINS", srv.URL)
 	admin := loginCookie(t, m, "admin", "test-admin-password")
 	viewer := loginCookie(t, m, "viewer", "test-viewer-password")
 	if w := request(m, "GET", "/api/notifiers", "", viewer); w.Code != 403 {
@@ -180,6 +181,7 @@ func TestTelegramSendRedactsToken(t *testing.T) {
 		w.Write([]byte(`{"ok":false}`))
 	}))
 	defer srv.Close()
+	t.Setenv("NOTIFY_ALLOWED_ORIGINS", srv.URL)
 	old := telegramAPI
 	telegramAPI = srv.URL
 	defer func() { telegramAPI = old }()

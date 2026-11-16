@@ -19,6 +19,8 @@ services:
       TZ: ${TZ:-Asia/Ho_Chi_Minh}
       JOB_TIMEOUT: ${JOB_TIMEOUT:-2h}
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-10737418240}
+      LOCAL_PATH_ALLOWED_ROOTS: ${LOCAL_PATH_ALLOWED_ROOTS:-/sources,/restore,/mssql-backup}
+      NOTIFY_ALLOWED_ORIGINS: ${NOTIFY_ALLOWED_ORIGINS:-https://api.telegram.org,https://hooks.slack.com,https://discord.com,https://discordapp.com}
       JOB_RETRIES: ${JOB_RETRIES:-2}
       JOB_RETRY_DELAY: ${JOB_RETRY_DELAY:-2m}
       CATCH_UP_MISSED: ${CATCH_UP_MISSED:-true}

@@ -127,8 +127,9 @@ func (e mssqlEngine) test(ctx context.Context, m *Manager) error {
 // checkSharedDir verifies this container can write to the admin-selected shared
 // mount. The root is intentionally configurable; the temporary name is generated.
 func checkSharedDir(dir string) error {
-	if !validLocalDir(dir) || dir == "/" {
-		return errors.New("Thư mục dùng chung phải là đường dẫn tuyệt đối hợp lệ")
+	dir, err := allowedLocalDirectory(dir)
+	if err != nil {
+		return err
 	}
 	f, err := os.CreateTemp(dir, ".dbbm-check-*")
 	if err != nil {
@@ -147,13 +148,17 @@ func serverPath(dir, name string) string {
 }
 
 func (e mssqlEngine) dump(ctx context.Context, m *Manager, database, out string) error {
+	dir, err := allowedLocalDirectory(m.cfg.LocalDir)
+	if err != nil {
+		return err
+	}
 	db, err := e.open(m, false, "")
 	if err != nil {
 		return errors.New("Cấu hình SQL Server không hợp lệ")
 	}
 	defer db.Close()
 	name := "dbbm-" + token() + ".bak"
-	local := filepath.Join(m.cfg.LocalDir, name)
+	local := filepath.Join(dir, name)
 	defer os.Remove(local)
 	options := "COPY_ONLY, INIT, CHECKSUM"
 	var edition int
@@ -244,6 +249,10 @@ func mssqlFileList(ctx context.Context, db *sql.DB, remote string) ([]mssqlFile,
 }
 
 func (e mssqlEngine) restore(ctx context.Context, m *Manager, target, _, file string) error {
+	dir, err := allowedLocalDirectory(m.cfg.LocalDir)
+	if err != nil {
+		return err
+	}
 	db, err := e.open(m, true, "")
 	if err != nil {
 		return fmt.Errorf("invalid restore configuration")
@@ -257,7 +266,7 @@ func (e mssqlEngine) restore(ctx context.Context, m *Manager, target, _, file st
 		return fmt.Errorf("target database %s already exists", target)
 	}
 	name := "dbbm-restore-" + token() + ".bak"
-	local := filepath.Join(m.cfg.LocalDir, name)
+	local := filepath.Join(dir, name)
 	// SQL Server runs as another user and must be able to read the copy.
 	if err = copyFile(file, local, 0644); err != nil {
 		os.Remove(local)
